@@ -1,4 +1,5 @@
 from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple
+import asyncio
 
 from typing_extensions import Self
 from viam.components.camera import Camera
@@ -72,6 +73,9 @@ class MeetingDirector(Sensor, EasyResource):
 
         self.displayed = False
         self.previous_closest_face = None
+        
+        # Start background task to refresh events every 60 seconds
+        self._events_refresh_task = asyncio.create_task(self._refresh_events_periodically())
 
         return super().reconfigure(config, dependencies)
 
@@ -134,6 +138,23 @@ class MeetingDirector(Sensor, EasyResource):
         self.previous_closest_face = None
         self.pixoo.clear()
         self.pixoo.push()
+
+    async def _refresh_events_periodically(self) -> None:
+        while True:
+            try:
+                await asyncio.sleep(60)
+                fresh_events = self.calendar_service.get_upcoming_events()
+                if fresh_events:
+                    self.google_events = fresh_events
+                    self.logger.debug("Updated Google events in background")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error("Error refreshing events: %s", e)
+
+    def close(self) -> None:
+        if hasattr(self, '_events_refresh_task'):
+            self._events_refresh_task.cancel()
 
     async def do_command(
         self,
