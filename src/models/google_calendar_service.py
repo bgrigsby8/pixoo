@@ -40,7 +40,7 @@ class GoogleCalendarService:
         if self.credentials:
             self.service = build('calendar', 'v3', credentials=self.credentials)
 
-    def get_upcoming_events(self, time_window_minutes: int = 300) -> Optional[Dict[str, Any]]:
+    def get_upcoming_events(self, time_window_minutes: int = 5) -> Optional[Dict[str, Any]]:
         if not self.service:
             return None
 
