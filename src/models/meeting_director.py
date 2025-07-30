@@ -147,6 +147,8 @@ class MeetingDirector(Sensor, EasyResource):
                 if fresh_events:
                     self.google_events = fresh_events
                     self.logger.debug("Updated Google events in background")
+                    # Clear display to be updated
+                    self._clear_display()
             except asyncio.CancelledError:
                 break
             except Exception as e:
