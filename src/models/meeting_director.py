@@ -61,7 +61,6 @@ class MeetingDirector(Sensor, EasyResource):
 
         self.calendar_service = GoogleCalendarService()
         self.google_events = self.calendar_service.get_upcoming_events()
-        self.logger.debug("Google events collected: %s", self.google_events)
 
         self.path_emails: Dict[str, str] = attributes["path_emails"]
 
@@ -70,6 +69,9 @@ class MeetingDirector(Sensor, EasyResource):
         self.pixoo.set_brightness(100)
         
         self.path_drawer = PixooPathDrawer(self.pixoo)
+
+        self.displayed = False
+        self.previous_closest_face = None
 
         return super().reconfigure(config, dependencies)
 
@@ -88,12 +90,14 @@ class MeetingDirector(Sensor, EasyResource):
         if not faces:
             self.pixoo.clear()
             self.pixoo.push()
+            self.displayed = False
             return {"faces_detected": False}
         
         closest_face = None
         closest_face_area = 0
         for face in faces:
             if face.class_name in self.path_emails.keys():
+                self.logger.debug(f"Recognized face: {face.class_name}")
                 face_area = (face.x_max - face.x_min) * (face.y_max - face.y_min)
                 closest_face = face.class_name if closest_face_area < face_area else closest_face
                 closest_face_area = max(closest_face_area, face_area)
@@ -101,8 +105,14 @@ class MeetingDirector(Sensor, EasyResource):
                 self.logger.debug("Face not recognized, clearing Pixoo display")
         
         if closest_face:
+            if self.previous_closest_face != None and self.previous_closest_face != closest_face:
+                self.logger.debug(f"New face detected: {closest_face}, updating Pixoo display")
+                self.pixoo.clear()
+                self.displayed = False
+            self.previous_closest_face = closest_face
             closest_face_email = self.path_emails[closest_face]
-            self._display_user_meeting_directions(closest_face_email)
+            if not self.displayed:
+                self._display_user_meeting_directions(closest_face_email)
         else:
             self.logger.debug("No known face detected, clearing Pixoo display")
             self._clear_display()
@@ -111,12 +121,17 @@ class MeetingDirector(Sensor, EasyResource):
 
     def _display_user_meeting_directions(self, user_email: str) -> None:
         location = self.calendar_service.find_user_next_meeting(self.google_events, user_email)
+        self.logger.debug(f"Next meeting location for {user_email}: {location}")
         if location:
+            self.logger.debug(f"Drawing path for {user_email} to {location}")
             self.path_drawer.draw_room_path(location)
+            self.displayed = True
         else:
             self._clear_display()
 
     def _clear_display(self) -> None:
+        self.displayed = False
+        self.previous_closest_face = None
         self.pixoo.clear()
         self.pixoo.push()
 

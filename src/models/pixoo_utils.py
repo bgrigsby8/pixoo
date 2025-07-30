@@ -1,5 +1,6 @@
 from typing import List, Tuple
 from pixoo import Pixoo
+import pixoo
 from .config import (
     ARROW_COLOR, 
     PATH_COLOR,
@@ -56,6 +57,18 @@ class PixooPathDrawer:
         if location not in ROOM_PATHS:
             return
         
+        # Draw office map
+        self.pixoo.draw_line((2, 22), (62, 22), ARROW_COLOR)
+        self.pixoo.draw_line((62, 22), (62, 34), ARROW_COLOR)
+        self.pixoo.draw_line((62, 34), (46, 34), ARROW_COLOR)
+        self.pixoo.draw_line((46, 34), (30, 63), ARROW_COLOR)
+        self.pixoo.draw_line((30, 63), (15, 63), ARROW_COLOR)
+        self.pixoo.draw_line((15, 63), (2, 22), ARROW_COLOR)
+
+        # Draw current location
+        self.pixoo.draw_pixel((55, 28), (255, 0, 0))
+        self.pixoo.push()
+        
         path_points = ROOM_PATHS[location]
         if len(path_points) < 2:
             return
@@ -66,4 +79,7 @@ class PixooPathDrawer:
                 path_points[i + 1], 
                 PATH_COLOR
             )
+        self.pixoo.draw_text(location, (2, 3), (255, 255, 255))
         self.pixoo.push()
+
+        # self.pixoo.send_text(location, (24, 0), (255, 255, 255), 1, 3)

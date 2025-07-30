@@ -48,6 +48,7 @@ class GoogleCalendarService:
         end = (datetime.datetime.utcnow() + datetime.timedelta(minutes=time_window_minutes)).isoformat() + 'Z'
 
         calendar_list = self.service.calendarList().list().execute()
+        all_events = []
 
         for calendar in calendar_list['items']:
             if calendar.get('summary', '') in IGNORE_CALENDARS:
@@ -63,7 +64,11 @@ class GoogleCalendarService:
             ).execute()
 
             if events.get('items'):
-                return events
+                all_events.extend(events['items'])
+
+        if all_events:
+            all_events.sort(key=lambda x: x.get('start', {}).get('dateTime', x.get('start', {}).get('date', '')))
+            return {'items': all_events}
 
         return None
 
