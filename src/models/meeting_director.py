@@ -1,5 +1,4 @@
-from typing import (Any, ClassVar, Dict, Final, List, Mapping, Optional,
-                    Sequence, Tuple)
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from typing_extensions import Self
 from viam.components.camera import Camera
@@ -12,217 +11,10 @@ from viam.resource.types import Model, ModelFamily
 from viam.services.vision import Vision
 from viam.utils import SensorReading, ValueTypes, struct_to_dict
 
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-import datetime
-import os.path
-import pickle
 from pixoo import Pixoo
+from .google_calendar_service import GoogleCalendarService
+from .pixoo_utils import PixooPathDrawer
 
-ARROW_COLOR = (255, 255, 255)
-IGNORE_CALENDARS = [
-    "Zoom Rooms",
-    "Birthdays",
-    "Holidays in United States",
-    "Tasks"
-]
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-PATHS = {
-    "NYC Office-6-A1-ELIOT (2) [Zoom Room]": [
-        (55, 27),
-        (55, 23),
-        (5, 23),
-    ],
-    "NYC Office-6-B4 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-B5 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-B7 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-B8 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-C5 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-C8 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-D4 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-D8 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-E4 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-E7 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-F1 (6) [Zoom Room]": [
-        (55, 27),
-        (55, 23),
-        (12, 23),
-    ],
-    "NYC Office-6-F2 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-F3 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-F4 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-F5 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-F12 (24) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-H1 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-L8 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-L9 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-L10 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-M2 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-Q2 (6) [Zoom Room]": [
-        ()
-    ],
-    "NYC Office-6-Q6 (6) [Zoom Room]": [
-        ()
-    ], 
-    "NYC Office-6-R2 (4) [Zoom Room]": [
-        ()
-    ], 
-    "NYC Office-6-R6 (6) [Zoom Room]": [
-        ()
-    ],                                    
-    "NYC Office-6-W1 (12) [Zoom Room]": [
-        (55, 27),
-        (55, 25),
-        (59, 25),
-        (59, 24),
-    ],
-    "NYC Office-6-V8 (6) [Zoom Room]": [
-        (55, 29),
-        (55, 32),
-    ],
-    "NYC Office-6-W8 (6) [Zoom Room]": [
-        (55, 29),
-        (55, 30),
-        (57, 30),
-        (57, 32),
-    ],
-    "NYC Office-6-X8 (6) [Zoom Room]": [
-        (55, 29),
-        (55, 30),
-        (60, 30),
-        (60, 32),
-    ]
-}
-
-
-def send_right_arrow(pixoo: Pixoo):
-    pixoo.draw_filled_rectangle((15, 32), (40, 40), ARROW_COLOR)
-    for i in range(13):
-        x   = 41 + i      
-        y1  = 24 + i          
-        y2  = 48 - i    
-        pixoo.draw_line((x, y1), (x, y2), ARROW_COLOR)
-    pixoo.push()
-
-def send_left_arrow(pixoo: Pixoo):
-    pixoo.draw_filled_rectangle((23, 34), (48, 42), ARROW_COLOR)
-    for i in range(13):
-        x   = 22 - i
-        y1  = 26 + i  
-        y2  = 50 - i
-        pixoo.draw_line((x, y1), (x, y2), ARROW_COLOR)
-    pixoo.push()
-
-def send_up_arrow(pixoo: Pixoo):
-    pixoo.draw_filled_rectangle((28, 39), (36, 54), ARROW_COLOR)
-    for i in range(13):
-        y   = 38 - i      
-        x1  = 20 + i     
-        x2  = 44 - i     
-        pixoo.draw_line((x1, y), (x2, y), ARROW_COLOR)
-    pixoo.push()
-
-def send_down_arrow(pixoo: Pixoo):
-    pixoo.draw_filled_rectangle((28, 25), (36, 40), ARROW_COLOR)
-    for i in range(13):
-        y   = 41 + i       
-        x1  = 20 + i        
-        x2  = 44 - i        
-        pixoo.draw_line((x1, y), (x2, y), ARROW_COLOR)
-    pixoo.push()
-
-def get_google_credentials():
-    creds = None
-    if os.path.exists('/home/pixoo/pixoo/token.pickle'):
-        with open('/home/pixoo/pixoo/token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    # if not creds or not creds.valid:
-    #     flow = InstalledAppFlow.from_client_secrets_file('/home/pixoo/pixoo/credentials.json', SCOPES)
-    #     creds = flow.run_local_server(port=0)
-    #     with open('/home/pixoo/pixoo/token.pickle', 'wb') as token:
-    #         pickle.dump(creds, token)
-    return creds
-
-def get_google_events():
-    creds = get_google_credentials()
-    service = build('calendar', 'v3', credentials=creds)
-
-    now = datetime.datetime.utcnow().isoformat() + 'Z'
-    end = (datetime.datetime.utcnow() + datetime.timedelta(minutes=1560)).isoformat() + 'Z' 
-
-    calendar_list = service.calendarList().list().execute()
-
-    for calendar in calendar_list['items']:
-        cal_id = calendar['id']
-
-        events = service.events().list(
-            calendarId=cal_id,
-            timeMin=now,
-            timeMax=end,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-
-        if events['summary'] in IGNORE_CALENDARS:
-            continue
-
-        return events
-
-def something(events, email):
-    for event in events.get('items', []):
-        attendees = event.get('attendees', [])
-        for attendee in attendees:
-            if attendee.get('email') == email:
-                location = event.get('location')
-                draw_pixoo(location)
-                return
-
-def draw_pixoo(location):
-    pixoo = Pixoo()
-
-    for path_point in range(len(PATHS[location]) - 1):
-        pixoo.draw_line(PATHS[location][path_point], PATHS[location][path_point + 1], (255, 255, 255))
-    pixoo.push()
 
 class MeetingDirector(Sensor, EasyResource):
     # To enable debug-level logging, either run viam-server with the --debug option,
@@ -267,17 +59,17 @@ class MeetingDirector(Sensor, EasyResource):
         self.camera: Camera = dependencies[Camera.get_resource_name(attributes["camera_name"])]
         self.face_detector: Vision = dependencies[Vision.get_resource_name(attributes["face_detector"])]
 
-        # Collect all google events
-        self.google_events = get_google_events()
+        self.calendar_service = GoogleCalendarService()
+        self.google_events = self.calendar_service.get_upcoming_events()
         self.logger.debug("Google events collected: %s", self.google_events)
 
-        # Name path to emails
         self.path_emails: Dict[str, str] = attributes["path_emails"]
 
-        # Setup pixoo display
         self.pixoo = Pixoo(attributes["pixoo_ip"], 64)
         self.pixoo.clear()
         self.pixoo.set_brightness(100)
+        
+        self.path_drawer = PixooPathDrawer(self.pixoo)
 
         return super().reconfigure(config, dependencies)
 
@@ -310,14 +102,23 @@ class MeetingDirector(Sensor, EasyResource):
         
         if closest_face:
             closest_face_email = self.path_emails[closest_face]
-            something(self.google_events, closest_face_email)
+            self._display_user_meeting_directions(closest_face_email)
         else:
             self.logger.debug("No known face detected, clearing Pixoo display")
-            self.pixoo.clear()
-            self.pixoo.push()
+            self._clear_display()
         
         return {"faces_detected": bool(closest_face), "closest_face": closest_face}
 
+    def _display_user_meeting_directions(self, user_email: str) -> None:
+        location = self.calendar_service.find_user_next_meeting(self.google_events, user_email)
+        if location:
+            self.path_drawer.draw_room_path(location)
+        else:
+            self._clear_display()
+
+    def _clear_display(self) -> None:
+        self.pixoo.clear()
+        self.pixoo.push()
 
     async def do_command(
         self,
